@@ -1,87 +1,117 @@
-﻿using System.Security.Claims;
+﻿using System.IdentityModel.Tokens.Jwt;
+using System.Security.Claims;
+using Microsoft.AspNetCore.Authorization;
+using Microsoft.AspNetCore.Identity;
 using Microsoft.AspNetCore.Mvc;
 using WebApplication1.Dto;
 using WebApplication1.Model;
-using WebApplication1.Services;
 
 namespace WebApplication1.Controllers
 {
     [Route("api/auth")]
     public class AuthController : ControllerBase
     {
-        private readonly UserService _userService;
+        private readonly UserManager<User> _userManager;
         private readonly TokenService _tokenService;
+        private readonly SignInManager<User> _signInManager;
 
-        public AuthController(UserService userService, TokenService tokenService)
+        public AuthController(UserManager<User> userManager, TokenService tokenService,
+            SignInManager<User> signInManager)
         {
+            _signInManager = signInManager;
             _tokenService = tokenService;
-            _userService = userService;
+            _userManager = userManager;
         }
 
         [HttpPost("register")]
         public async Task<IActionResult> Create([FromBody] RegisterDto dto)
         {
-            // var hashedPassword = HashPassword(dto.Password);
-            var user = new User { Name = dto.Name, Email = dto.Email, Password = dto.Password };
+            var user = new User() { UserName = dto.Email, DisplayName = dto.Name, Email = dto.Email };
 
-            User? newUser = await _userService.CreateUser(user);
+            var result = await _userManager.CreateAsync(user, dto.Password);
 
-            if (newUser == null) return BadRequest("User already exist");
+            if (!result.Succeeded) return BadRequest(result.Errors);
 
-            return Ok(newUser);
+            Response.Cookies.Append("accessToken", GetUserTokens(user).AccessToken);
+            // return Ok(GetUserTokens(user));
+            var userDto = new UserDto
+            {
+                Id = user.Id,
+                UserName = user.UserName,
+                Email = user.Email
+            };
+            return Ok(userDto);
         }
 
 
         [HttpPost("login")]
         public async Task<IActionResult> Login([FromBody] LoginDto dto)
         {
-            User? user = await _userService.GetUserByEmail(dto.Email);
-            if (user == null)
+            var result = await _signInManager.PasswordSignInAsync(dto.Email, dto.Password, true, false);
+            if (!result.Succeeded)
             {
                 return BadRequest("User is not exist");
             }
 
-            var claims = new[]
-            {
-                new Claim(ClaimTypes.Email, user.Email),
-                new Claim(ClaimTypes.Name, user.Name),
-            };
-            
-            return Ok(_tokenService.GenerateTokens(claims));
+            var user = await _userManager.FindByEmailAsync(dto.Email);
+
+            Response.Cookies.Append("accessToken", GetUserTokens(user!).AccessToken);
+
+            return Ok(GetUserTokens(user!));
+
+            // var userDto = new UserDto
+            // {
+            //     Id = user.Id,
+            //     UserName = user.UserName,
+            //     Email = user.Email
+            // };
+            //
+            // return Ok(userDto);
         }
 
+        [HttpPost("sign-out")]
+        public async void SignOut()
+        {
+            Response.Cookies.Delete("accessToken");
+            await _signInManager.SignOutAsync();
+        }
 
-        // private static string HashPassword(string password)
+        // [HttpPost("refresh")]
+        // public IActionResult RefreshToken()
         // {
-        //     byte[] salt = RandomNumberGenerator.GetBytes(128 / 8);
-        //     
-        //     string hashed = Convert.ToBase64String(KeyDerivation.Pbkdf2(
-        //         password: password!,
-        //         salt: salt,
-        //         prf: KeyDerivationPrf.HMACSHA256,
-        //         iterationCount: 100000,
-        //         numBytesRequested: 256 / 8));
+        //     Response.Cookies.Append("accessToken", GetUserTokens(user!).AccessToken);
         //
-        //     return hashed;
-        // }
+        //     var accessToken = Request.Cookies[".AspNetCore.Identity.Application"];
         //
-        // private static bool VerifyHashedPassword(string hashedPassword, string password)
-        // {
-        //     byte[] buffer4;
-        //     byte[] src = Convert.FromBase64String(hashedPassword);
-        //     if ((src.Length != 0x31) || (src[0] != 0))
-        //     {
-        //         return false;
-        //     }
-        //     byte[] dst = new byte[0x10];
-        //     Buffer.BlockCopy(src, 1, dst, 0, 0x10);
-        //     byte[] buffer3 = new byte[0x20];
-        //     Buffer.BlockCopy(src, 0x11, buffer3, 0, 0x20);
-        //     using (Rfc2898DeriveBytes bytes = new Rfc2898DeriveBytes(password, dst, 0x3e8))
-        //     {
-        //         buffer4 = bytes.GetBytes(0x20);
-        //     }
-        //     return ByteArraysEqual(buffer3, buffer4);
+        //     var isValidate = _tokenService.TryRefreshToken(tokens, out var newTokens);
+        //
+        //
+        //     return isValidate ? Ok(newTokens) : BadRequest("Tokens aren't validate");
         // }
+        [Authorize()]
+        [HttpPost("refresh")]
+        public async Task<IActionResult> RefreshToken()
+        {
+            var accessToken = Request.Cookies["accessToken"];
+            var handler = new JwtSecurityTokenHandler();
+            var jwtSecurityToken = handler.ReadJwtToken(accessToken);
+            
+            // var result = await _signInManager.RefreshSignInAsync();
+            
+            return Ok(jwtSecurityToken);
+        }
+
+        private Tokens GetUserTokens(User user)
+        {
+            var claims = new[]
+            {
+                new Claim("Email", user.Email),
+                new Claim("Name", user.DisplayName),
+            };
+
+            var tokens = _tokenService.GenerateTokens(claims);
+
+            return tokens;
+        }
     }
 }

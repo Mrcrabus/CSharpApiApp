@@ -1,27 +1,50 @@
-using System.Security.Claims;
 using System.Text;
-using Microsoft.AspNetCore.Authentication;
-using Microsoft.AspNetCore.Authentication.Cookies;
 using Microsoft.AspNetCore.Authentication.JwtBearer;
+using Microsoft.AspNetCore.Identity;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.IdentityModel.Tokens;
 using Microsoft.OpenApi.Models;
 using WebApplication1.Helpers;
-using WebApplication1.Services;
-
+using WebApplication1.Model;
 
 var builder = WebApplication.CreateBuilder(args);
 IServiceCollection allServices = builder.Services;
 
+allServices.AddCors(options =>
+{
+    options.AddPolicy("AllowSpecificOrigin",
+        policy =>
+        {
+            policy.WithOrigins("http://localhost:4200")
+                .AllowAnyMethod()
+                .AllowAnyHeader()
+                .AllowCredentials();
+        });
+});
+
+
 string connection = builder.Configuration.GetConnectionString("WebApiDatabase");
 
-// Add services to the container.
+
 allServices.AddControllers();
 allServices.AddDbContext<DataContext>(options =>
     options.UseNpgsql(connection));
 
-// builder.Configuration.GetValue<string>("JWT:AccessSecretKey")
-// Learn more about configuring Swagger/OpenAPI at https://aka.ms/aspnetcore/swashbuckle
+
+allServices.AddIdentity<User, IdentityRole>()
+    .AddEntityFrameworkStores<DataContext>();
+
+builder.Services.Configure<IdentityOptions>(options =>
+{
+    // Password settings.
+    options.Password.RequireDigit = false;
+    options.Password.RequireLowercase = false;
+    options.Password.RequireNonAlphanumeric = false;
+    options.Password.RequireUppercase = false;
+    options.Password.RequiredLength = 6;
+    options.Password.RequiredUniqueChars = 1;
+});
+
 allServices.AddEndpointsApiExplorer();
 allServices.AddSwaggerGen(option =>
     {
@@ -51,10 +74,9 @@ allServices.AddSwaggerGen(option =>
         });
     }
 );
-var lol = builder.Configuration.GetValue<string>("JWT:AccessSecretKey");
 
 allServices.AddAuthorization();
-builder.Services.AddAuthentication(JwtBearerDefaults.AuthenticationScheme)
+allServices.AddAuthentication(JwtBearerDefaults.AuthenticationScheme)
     .AddJwtBearer(options =>
     {
         options.TokenValidationParameters = new TokenValidationParameters
@@ -69,12 +91,14 @@ builder.Services.AddAuthentication(JwtBearerDefaults.AuthenticationScheme)
         };
     });
 
+
+
 allServices.AddSingleton<TokenService>();
 allServices.Configure<JwtSetting>(builder.Configuration.GetSection("JWT"));
-allServices.AddCors();
-allServices.AddTransient<UserService>();
+
 
 var app = builder.Build();
+app.UseCors("AllowSpecificOrigin");
 
 app.UseDefaultFiles();
 app.UseStaticFiles();
@@ -86,35 +110,10 @@ if (app.Environment.IsDevelopment())
     app.UseSwaggerUI();
 }
 
-app.UseCors(builder => builder.AllowAnyOrigin());
-app.UseAuthorization();
+
 app.UseAuthentication();
+app.UseAuthorization();
 
 app.MapControllers();
-app.MapGet("/login", async (HttpContext context) =>
-{
-    var claimsIdentity = new ClaimsIdentity("Undefined");
-    var claimsPrincipal = new ClaimsPrincipal(claimsIdentity);
-    // установка аутентификационных куки
-    await context.SignInAsync(claimsPrincipal);
-    return Results.Redirect("/");
-});
 
-app.MapGet("/logout", async (HttpContext context) =>
-{
-    await context.SignOutAsync(CookieAuthenticationDefaults.AuthenticationScheme);
-    return "Данные удалены";
-});
-app.Map("/", (HttpContext context) =>
-{
-    var user = context.User.Identity;
-    if (user is not null && user.IsAuthenticated)
-    {
-        return $"Пользователь аутентифицирован. Тип аутентификации: {user.AuthenticationType}";
-    }
-    else
-    {
-        return "Пользователь НЕ аутентифицирован";
-    }
-});
 app.Run();

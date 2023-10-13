@@ -2,6 +2,7 @@
 using System.IdentityModel.Tokens.Jwt;
 using System.Security.Claims;
 using System.Text;
+using Microsoft.AspNetCore.CookiePolicy;
 using Microsoft.Extensions.Options;
 using Microsoft.IdentityModel.Tokens;
 
@@ -28,7 +29,6 @@ public class TokenService
 
         var accessToken = new JwtSecurityToken(
             claims: claims.Append(claim),
-            issuer:  "jest",
             expires: DateTime.UtcNow.AddMinutes(12),
             signingCredentials: credentialsAccess
         );
@@ -46,9 +46,9 @@ public class TokenService
         };
     }
 
-    public bool TryRefreshToken(Tokens tokens, out Tokens newToken)
+    public bool TryRefreshToken(Tokens tokens, out Tokens newTokens)
     {
-        newToken = null;
+        newTokens = null;
         
         var tokenHandler = new JwtSecurityTokenHandler();
         var validationParametersAccess = new TokenValidationParameters
@@ -80,7 +80,7 @@ public class TokenService
             if (tokenIdAccess == null || tokenIdRefresh == null || tokenIdAccess != tokenIdRefresh) return false;
 
             
-            newToken = GenerateTokens(claimsAccess.Claims.Where(claim => claim.Type != "tokenId"));
+            newTokens = GenerateTokens(claimsAccess.Claims.Where(claim => claim.Type != "tokenId"));
 
             return true;
         }
