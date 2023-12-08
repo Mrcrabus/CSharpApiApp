@@ -1,11 +1,12 @@
-using System.Text;
 using Microsoft.AspNetCore.Authentication.JwtBearer;
 using Microsoft.AspNetCore.Identity;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.IdentityModel.Tokens;
 using Microsoft.OpenApi.Models;
+using System.Text;
 using WebApplication1.Helpers;
 using WebApplication1.Model;
+using WebApplication1.Services;
 
 var builder = WebApplication.CreateBuilder(args);
 IServiceCollection allServices = builder.Services;
@@ -31,7 +32,8 @@ allServices.AddDbContext<DataContext>(options =>
     options.UseNpgsql(connection));
 
 
-allServices.AddIdentity<User, IdentityRole>()
+allServices.AddIdentityCore<User>()
+    .AddRoles<IdentityRole>()
     .AddEntityFrameworkStores<DataContext>();
 
 builder.Services.Configure<IdentityOptions>(options =>
@@ -74,6 +76,7 @@ allServices.AddSwaggerGen(option =>
         });
     }
 );
+allServices.AddTransient<PostsService>();
 
 allServices.AddAuthorization();
 allServices.AddAuthentication(JwtBearerDefaults.AuthenticationScheme)

@@ -1,10 +1,8 @@
-﻿using System;
+﻿using Microsoft.Extensions.Options;
+using Microsoft.IdentityModel.Tokens;
 using System.IdentityModel.Tokens.Jwt;
 using System.Security.Claims;
 using System.Text;
-using Microsoft.AspNetCore.CookiePolicy;
-using Microsoft.Extensions.Options;
-using Microsoft.IdentityModel.Tokens;
 
 public class TokenService
 {
@@ -29,13 +27,13 @@ public class TokenService
 
         var accessToken = new JwtSecurityToken(
             claims: claims.Append(claim),
-            expires: DateTime.UtcNow.AddMinutes(12),
+            expires: DateTime.UtcNow.AddMinutes(30),
             signingCredentials: credentialsAccess
         );
 
         var refreshToken = new JwtSecurityToken(
             claims: claims.Append(claim),
-            expires: DateTime.UtcNow.AddMinutes(30),
+            expires: DateTime.UtcNow.AddDays(1),
             signingCredentials: credentialsRefresh
         );
 
@@ -49,7 +47,7 @@ public class TokenService
     public bool TryRefreshToken(Tokens tokens, out Tokens newTokens)
     {
         newTokens = null;
-        
+
         var tokenHandler = new JwtSecurityTokenHandler();
         var validationParametersAccess = new TokenValidationParameters
         {
@@ -70,6 +68,8 @@ public class TokenService
 
         try
         {
+            if (tokens.AccessToken == null) return false;
+
             var claimsAccess = tokenHandler.ValidateToken(tokens.AccessToken, validationParametersAccess, out _);
             var claimsRefresh = tokenHandler.ValidateToken(tokens.RefreshToken, validationParametersRefresh, out _);
 
@@ -79,7 +79,7 @@ public class TokenService
 
             if (tokenIdAccess == null || tokenIdRefresh == null || tokenIdAccess != tokenIdRefresh) return false;
 
-            
+
             newTokens = GenerateTokens(claimsAccess.Claims.Where(claim => claim.Type != "tokenId"));
 
             return true;

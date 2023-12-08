@@ -1,11 +1,9 @@
-﻿using Microsoft.AspNetCore.Authorization;
-using Microsoft.AspNetCore.Identity;
+﻿using Microsoft.AspNetCore.Identity;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.EntityFrameworkCore;
 using WebApplication1.Dto;
 using WebApplication1.Model;
-using Microsoft.AspNetCore.Cors;
-
+using WebApplication1.Services;
 
 namespace WebApplication1.Controllers;
 
@@ -14,22 +12,31 @@ namespace WebApplication1.Controllers;
 public class UserController : ControllerBase
 {
     private readonly UserManager<User> _userManager;
+    private readonly PostsService _postsService;
 
-    public UserController(UserManager<User> userManager)
+    public UserController(UserManager<User> userManager, PostsService postsService)
     {
+        _postsService = postsService;
         _userManager = userManager;
     }
 
-    [Authorize()]
+
     [HttpGet()]
     public async Task<IActionResult> GetUsersAll()
     {
         var users = await _userManager.Users
+            .Include(user => user.Posts)
             .Select(user => new UserDto
             {
                 Id = user.Id,
-                UserName = user.UserName,
+                UserName = user.DisplayName,
                 Email = user.Email,
+                Posts = user.Posts.Select(post => new Post
+                {
+                    Id = post.Id,
+                    Title = post.Title,
+                    Description = post.Description
+                }).ToArray()
             })
             .ToListAsync();
 
@@ -38,9 +45,10 @@ public class UserController : ControllerBase
     }
 
     [HttpGet("{id}")]
-    public async Task<IActionResult> GetUsersById(string id)
+    public async Task<IActionResult> GetUsersById([FromRoute] string id)
     {
         var user = await _userManager.FindByIdAsync(id);
+        var posts = await _postsService.UserPosts(id);
 
         if (user == null)
         {
@@ -50,10 +58,10 @@ public class UserController : ControllerBase
         var userDto = new UserDto
         {
             Id = user.Id,
-            UserName = user.UserName,
-            Email = user.Email
+            UserName = user.DisplayName,
+            Email = user.Email,
+            Posts = posts.ToArray()
         };
-        
 
         return Ok(userDto);
     }

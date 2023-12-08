@@ -10,11 +10,22 @@ namespace WebApplication1.Helpers
             : base(options)
         {
             Database.EnsureCreated();
+
         }
+
+        public DbSet<Post> Posts { get; set; } = null!;
 
         protected override void OnModelCreating(ModelBuilder modelBuilder)
         {
             base.OnModelCreating(modelBuilder);
+
+
+            modelBuilder.Entity<Post>()
+            .HasOne(p => p.Author)
+            .WithMany(e => e.Posts)
+            .HasForeignKey(e => e.AuthorId)
+            .OnDelete(DeleteBehavior.Cascade)
+            .IsRequired();
 
             modelBuilder.Entity<User>()
                 .Ignore(u => u.AccessFailedCount)
@@ -25,7 +36,12 @@ namespace WebApplication1.Helpers
                 .Ignore(u => u.SecurityStamp)
                 .Ignore(u => u.EmailConfirmed)
                 .Ignore(u => u.PhoneNumberConfirmed)
-                .Ignore(u => u.TwoFactorEnabled);
+                .Ignore(u => u.TwoFactorEnabled)
+                ;
+
+
         }
+
     }
+
 }

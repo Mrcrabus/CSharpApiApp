@@ -17,6 +17,6 @@ namespace WebApplication1.Dto
 
         [MaxLength(30)]
         [Required]
-        public string Password { get; set; }         
+        public string Password { get; set; }
     }
 }
