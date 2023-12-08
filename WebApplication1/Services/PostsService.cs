@@ -73,15 +73,15 @@ namespace WebApplication1.Services
             await _db.SaveChangesAsync();
         }
 
-        public async Task<string> EditPost(string postId)
-        {
-            var post = await GetPost(postId);
+        // public async Task<string> EditPost(string postId)
+        // {
+        //     var post = await GetPost(postId);
 
-            if (post != null)
-            {
+        //     if (post != null)
+        //     {
 
-            }
-        }
+        //     }
+        // }
 
 
 
