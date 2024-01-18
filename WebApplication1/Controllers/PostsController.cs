@@ -18,7 +18,6 @@ namespace WebApplication1.Controllers
         {
             _postService = postsService;
             _userManager = userManager;
-
         }
 
         [HttpGet()]
@@ -27,6 +26,7 @@ namespace WebApplication1.Controllers
             var posts = await _postService.AllPosts();
             return Ok(posts);
         }
+
         [HttpGet("{userId}")]
         public async Task<IActionResult> UserPosts([FromRoute] string userId)
         {
@@ -40,15 +40,9 @@ namespace WebApplication1.Controllers
         {
             var post = await _postService.GetPost(postId);
 
-            if (post != null)
-            {
-                return Ok(post);
-            }
-            else
-            {
-                return BadRequest("Not found");
-            }
+            if (post == null) return BadRequest("Not found");
 
+            return Ok(post);
         }
 
         [Authorize()]
@@ -57,34 +51,33 @@ namespace WebApplication1.Controllers
         {
             var post = await _postService.DeletePost(postId);
 
-            if (post != null)
-            {
-                return Ok();
-            }
-            else
-            {
-                return BadRequest("Post not found");
-            }
+            if (post == null) return BadRequest("Post not found");
 
-
+            return Ok();
         }
 
         [Authorize()]
-        [HttpPut("{postId}")]
-        public async Task<IActionResult> EditPost([FromRoute] string postId)
+        [HttpPut()]
+        public async Task<IActionResult> EditPost([FromBody] AddPostDto post)
         {
-            var post = await _postService.DeletePost(postId);
+            var userEmail = User.FindFirst(ClaimTypes.Email)?.Value;
+            var userId = User.FindFirst("id")?.Value;
+            var userName = User.FindFirst("userName")?.Value;
+            var author = await _userManager.FindByEmailAsync(userEmail);
 
-            if (post != null)
+            var newPost = new Post
             {
-                return Ok();
-            }
-            else
-            {
-                return BadRequest("Post not found");
-            }
+                Id = Guid.NewGuid().ToString(),
+                Author = author,
+                Title = post.Title,
+                Description = post.Description,
+                AuthorId = userId,
+                AuthorName = userName
+            };
 
+            await _postService.UpdatePost(newPost);
 
+            return Ok(newPost);
         }
 
         [Authorize()]
@@ -113,22 +106,19 @@ namespace WebApplication1.Controllers
         }
 
 
-        [HttpPost("img")]
-        public async Task<IActionResult> UploadImageAsync(IFormFile file)
+        [HttpPost("img/{postId}")]
+        public async Task<IActionResult> UploadImageAsync(IFormFile file, [FromRoute] string postId)
         {
             if (file == null || file.Length == 0)
             {
                 throw new ArgumentException("File is required");
             }
 
-            // Генерируем уникальное имя файла
-            var fileName = Guid.NewGuid().ToString() + Path.GetExtension(file.FileName);
+            var fileName = postId + Path.GetExtension(file.FileName);
 
-            // Путь к каталогу, где будем сохранять изображения
             var filePath = Path.Combine("uploads/postsImages", fileName);
 
-            // Сохраняем файл на диск
-            using (var stream = new FileStream(filePath, FileMode.Create))
+            await using (var stream = new FileStream(filePath, FileMode.Create))
             {
                 await file.CopyToAsync(stream);
             }
@@ -140,30 +130,12 @@ namespace WebApplication1.Controllers
         [HttpGet("image/{imageName}")]
         public IActionResult GetImage(string imageName)
         {
-
-
             var imagePath = Path.Combine("uploads", imageName);
 
-            if (System.IO.File.Exists(imagePath))
-            {
-                var imageBytes = System.IO.File.ReadAllBytes(imagePath);
-                return File(imageBytes, "image/jpg");
-            }
-            else
-            {
-                return NotFound();
-            }
+            if (!System.IO.File.Exists(imagePath)) return NotFound();
+
+            var imageBytes = System.IO.File.ReadAllBytes(imagePath);
+            return File(imageBytes, "image/jpg");
         }
-
-
-
-
-
-
-
-
-
     }
-
-
 }

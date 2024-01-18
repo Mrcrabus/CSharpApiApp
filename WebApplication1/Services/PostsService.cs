@@ -17,10 +17,10 @@ namespace WebApplication1.Services
         {
             Post[] posts = await _db.Posts.Include(x => x.Author).ToArrayAsync();
 
-            Post[] reversedPosts = posts.Clone() as Post[];
-            Array.Reverse(reversedPosts);
+            Post[] clonedPosts = posts.Clone() as Post[];
+            Array.Reverse(clonedPosts);
 
-            return reversedPosts;
+            return clonedPosts;
         }
 
         public async Task<Post[]> UserPosts(string userId)
@@ -39,33 +39,29 @@ namespace WebApplication1.Services
 
             await _db.SaveChangesAsync();
         }
+
         public async Task UpdatePost(Post post)
         {
             _db.Posts.Update(post);
             await _db.SaveChangesAsync();
         }
 
-        public async Task<Post> GetPost(string id)
+        public async Task<Post?> GetPost(string id)
         {
             var post = await _db.Posts.Include(x => x.Author).SingleOrDefaultAsync(p => p.Id == id);
 
             return post;
         }
 
-        public async Task<string> DeletePost(string postId)
+        public async Task<string?> DeletePost(string postId)
         {
             var post = await GetPost(postId);
 
-            if (post != null)
-            {
-                _db.Posts.Remove(post);
-                await _db.SaveChangesAsync();
-                return post.Id;
-            }
-            else
-            {
-                return null;
-            }
+            if (post == null) return null;
+
+            _db.Posts.Remove(post);
+            await _db.SaveChangesAsync();
+            return post.Id;
         }
 
         public async Task ChangeImage()
@@ -82,8 +78,5 @@ namespace WebApplication1.Services
 
         //     }
         // }
-
-
-
     }
 }
